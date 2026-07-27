@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local RAG Assistant + Fine-Tune — Project Guide</title>
+<style>
+  :root{
+    --bg: #12140F;
+    --surface: #1A1D14;
+    --surface-2: #21241A;
+    --line: #3A3D2A;
+    --text: #E8E4D8;
+    --text-dim: #A6A493;
+    --amber: #E8A33D;
+    --amber-dim: #8A6427;
+    --teal: #6FA19E;
+    --red: #C4644A;
+  }
+
+  * { box-sizing: border-box; }
+
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse at top left, rgba(232,163,61,0.05), transparent 45%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    line-height: 1.55;
+  }
+
+  .mono{ font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+
+  /* ---------- layout shell ---------- */
+  .wrap{ max-width: 880px; margin: 0 auto; padding: 0 24px 120px; }
+
+  /* ---------- sticky progress bar ---------- */
+  .progress-rail{
+    position: sticky; top:0; z-index: 50;
+    background: rgba(18,20,15,0.92);
+    backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 24px;
+  }
+  .progress-rail-inner{
+    max-width: 880px; margin: 0 auto;
+    display:flex; align-items:center; gap:14px;
+  }
+  .progress-label{
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text-dim); white-space: nowrap;
+  }
+  .progress-track{
+    flex:1; height: 6px; background: var(--surface-2);
+    border-radius: 3px; overflow:hidden; border:1px solid var(--line);
+  }
+  .progress-fill{
+    height:100%; width:0%;
+    background: linear-gradient(90deg, var(--amber-dim), var(--amber));
+    transition: width .4s ease;
+  }
+  .progress-count{ font-size:12px; color: var(--amber); min-width:48px; text-align:right; }
+
+  /* ---------- hero / boot sequence ---------- */
+  .hero{ padding: 64px 0 40px; border-bottom: 1px dashed var(--line); }
+  .boot{
+    color: var(--teal); font-size: 13px; margin-bottom: 22px; min-height: 90px;
+    white-space: pre-wrap;
+  }
+  .boot .cursor{ display:inline-block; width:8px; background:var(--amber); animation: blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  h1.title{
+    font-size: clamp(28px, 5vw, 42px);
+    margin: 0 0 10px;
+    letter-spacing: -0.01em;
+    font-weight: 700;
+  }
+  .title .accent{ color: var(--amber); }
+  .subtitle{ color: var(--text-dim); font-size: 15px; max-width: 60ch; margin: 0 0 24px; }
+
+  .meta-row{ display:flex; gap:10px; flex-wrap:wrap; }
+  .pill{
+    font-size:11px; letter-spacing:.04em; text-transform:uppercase;
+    padding: 5px 10px; border:1px solid var(--line); border-radius: 100px;
+    color: var(--text-dim);
+  }
+  .pill.on{ color: var(--amber); border-color: var(--amber-dim); }
+
+  /* ---------- section chrome ---------- */
+  .phase{ margin-top: 56px; }
+  .phase-head{
+    display:flex; align-items:baseline; gap: 12px; margin-bottom: 6px;
+  }
+  .phase-num{ color: var(--amber); font-size: 13px; }
+  .phase-title{ font-size: 22px; font-weight: 700; margin:0; }
+  .phase-sub{ color: var(--text-dim); font-size: 14px; margin: 0 0 24px; }
+
+  .day-block{
+    border: 1px solid var(--line);
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 20px 22px;
+    margin-bottom: 16px;
+  }
+  .day-head{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin-bottom: 10px;
+  }
+  .day-title{ font-size: 15px; font-weight: 600; }
+  .day-title .prompt{ color: var(--teal); margin-right: 6px; }
+  .day-tag{ font-size: 11px; color: var(--text-dim); border:1px solid var(--line); padding:2px 8px; border-radius:6px; white-space:nowrap;}
+
+  ul.steps{ margin: 0; padding: 0; list-style:none; }
+  ul.steps li{
+    display:flex; gap:10px; align-items:flex-start;
+    padding: 7px 0; font-size: 14px; border-top: 1px solid rgba(255,255,255,0.03);
+  }
+  ul.steps li:first-child{ border-top:none; }
+  ul.steps input[type=checkbox]{
+    appearance:none; -webkit-appearance:none;
+    width:16px; height:16px; margin-top:2px; flex:none;
+    border:1px solid var(--line); border-radius:4px; background: var(--surface-2);
+    cursor:pointer; position:relative;
+  }
+  ul.steps input[type=checkbox]:checked{ background: var(--amber); border-color:var(--amber); }
+  ul.steps input[type=checkbox]:checked::after{
+    content:"✓"; position:absolute; top:-3px; left:2px; font-size:11px; color:#12140F; font-weight:700;
+  }
+  ul.steps label{ cursor:pointer; }
+  ul.steps li.done label{ color: var(--text-dim); text-decoration: line-through; text-decoration-color: var(--line); }
+
+  pre.code{
+    background: #0E100B; border:1px solid var(--line); border-radius:8px;
+    padding: 12px 14px; overflow-x:auto; font-size: 12.5px; color: var(--teal);
+    margin: 10px 0 0;
+  }
+  pre.code .c1{ color: var(--text-dim); }
+  code.inline{
+    background: var(--surface-2); border:1px solid var(--line); border-radius:4px;
+    padding: 1px 6px; font-size: 0.9em; color: var(--amber);
+  }
+
+  .callout{
+    border-left: 3px solid var(--amber); background: rgba(232,163,61,0.06);
+    padding: 12px 16px; border-radius: 0 8px 8px 0; font-size: 13.5px; margin-top: 10px;
+    color: var(--text);
+  }
+  .callout.warn{ border-left-color: var(--red); background: rgba(196,100,74,0.07); }
+  .callout b{ color: var(--amber); }
+  .callout.warn b{ color: var(--red); }
+
+  /* ---------- gotchas grid ---------- */
+  .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width:640px){ .grid2{ grid-template-columns: 1fr; } }
+  .card{
+    border:1px solid var(--line); background: var(--surface); border-radius:10px; padding:18px 20px;
+  }
+  .card h3{ margin:0 0 8px; font-size:14px; color:var(--amber); }
+  .card p{ margin:0; font-size:13.5px; color: var(--text-dim); }
+
+  /* ---------- resources ---------- */
+  .reslist{ list-style:none; margin:0; padding:0; }
+  .reslist li{
+    display:flex; justify-content:space-between; gap:12px;
+    padding:12px 0; border-top:1px solid var(--line); font-size:14px;
+  }
+  .reslist li:first-child{ border-top:none; }
+  .reslist .name{ font-weight:600; }
+  .reslist .desc{ color: var(--text-dim); font-size:12.5px; }
+
+  footer{
+    margin-top: 60px; padding-top: 20px; border-top: 1px dashed var(--line);
+    color: var(--text-dim); font-size: 12px; text-align:center;
+  }
+
+  ::selection{ background: var(--amber-dim); color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="progress-rail">
+  <div class="progress-rail-inner">
+    <span class="progress-label">progress</span>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <span class="progress-count" id="progressCount">0/0</span>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <section class="hero">
+    <div class="boot mono" id="bootText"></div>
+    <h1 class="title">Local RAG Assistant <span class="accent">+</span> Fine-Tune</h1>
+    <p class="subtitle">A two-week, CPU-only build: stand up a retrieval-augmented assistant on your own documents, then fine-tune a small model's style with LoRA and benchmark it against alternatives.</p>
+    <div class="meta-row">
+      <span class="pill on">no GPU required</span>
+      <span class="pill">14 days</span>
+      <span class="pill">Python</span>
+      <span class="pill">models ≤ 3B params</span>
+    </div>
+  </section>
+
+  <!-- PHASE 0 -->
+  <section class="phase">
+    <div class="phase-head">
+      <span class="phase-num mono">day 0</span>
+      <h2 class="phase-title">Setup</h2>
+    </div>
+    <p class="phase-sub">Get the environment working before touching any project logic — this is the part most likely to eat an evening if skipped.</p>
+
+    <div class="day-block">
+      <div class="day-head">
+        <div class="day-title"><span class="prompt mono">$</span>Install the runtime and a small model</div>
+        <span class="day-tag">~45 min</span>
+      </div>
+      <ul class="steps">
+        <li><input type="checkbox" id="s0-1"><label for="s0-1">Install <a href="https://ollama.com" style="color:var(--teal)">Ollama</a> (CPU-first local runtime, wraps llama.cpp)</label></li>
+        <li><input type="checkbox" id="s0-2"><label for="s0-2">Pull a small quantized model and confirm it responds</label></li>
+        <li><input type="checkbox" id="s0-3"><label for="s0-3">Create a Python 3.10+ virtual environment for the project</label></li>
+        <li><input type="checkbox" id="s0-4"><label for="s0-4">Install core libraries: embeddings, vector store, UI</label></li>
+      </ul>
+      <pre class="code mono"><span class="c1"># pull + sanity check a small model</span>
+ollama pull qwen2.5:3b
+ollama run qwen2.5:3b "Say hello in one sentence."
+
+<span class="c1"># project environment</span>
+python -m venv .venv && source .venv/bin/activate
+pip install chromadb sentence-transformers streamlit ollama pypdf</pre>
+      <div class="callout">
+        <b>Why Qwen2.5:3b or Llama3.2:3b:</b> both run at usable speed on a CPU with no dedicated GPU. Anything above ~7B params will feel painfully slow without quantization tricks — stay small for now, you can always size up later.
+      </div>
+    </div>
+  </section>
+
+  <!-- PHASE 1 -->
+  <section class="phase">
+    <div class="phase-head">
+      <span class="phase-num mono">week 1</span>
+      <h2 class="phase-title">Build the assistant</h2>
+    </div>
+    <p class="phase-sub">Goal by end of week: a working RAG app with a UI, answering questions over your own documents.</p>
+
+    <div class="day-block">
+      <div class="day-head">
+        <div class="day-title"><span class="prompt mono">$</span>Days 1–2 — Ingest your documents</div>
+        <span class="day-tag">core</span>
+      </div>
+      <ul class="steps">
+        <li><input type="checkbox" id="s1-1"><label for="s1-1">Pick a document set: notes, PDFs, a niche wiki export, saved articles — something you actually want to query</label></li>
+        <li><input type="checkbox" id="s1-2"><label for="s1-2">Write a loader that chunks text into ~300–500 token pieces with slight overlap</label></li>
+        <li><input type="checkbox" id="s1-3"><label for="s1-3">Embed each chunk with a small local embedding model and store in Chroma</label></li>
+        <li><input type="checkbox" id="s1-4"><label for="s1-4">Sanity-check retrieval: query the store directly, confirm relevant chunks come back</label></li>
+      </ul>
+      <pre class="code mono"><span class="c1"># minimal ingestion sketch</span>
+from sentence_transformers import SentenceTransformer
+import chromadb
+
+embedder = SentenceTransformer("all-MiniLM-L6-v2")  <span class="c1"># small, CPU-friendly</span>
+client = chromadb.PersistentClient(path="./chroma_db")
+collection = client.get_or_create_collection("my_docs")
+
+for i, chunk in enumerate(chunks):
+    collection.add(
+        documents=[chunk],
+        embeddings=[embedder.encode(chunk).tolist()],
+        ids=[f"chunk-{i}"]
+    )</pre>
+    </div>
+
+    <div class="day-block">
+      <div class="day-head">
+        <div class="day-title"><span class="prompt mono">$</span>Days 3–4 — Wire retrieval into the model</div>
+        <span class="day-tag">core</span>
+      </div>
+      <ul class="steps">
+        <li><input type="checkbox" id="s1-5"><label for="s1-5">On each user question, embed it and retrieve the top 3–5 chunks</label></li>
+        <li><input type="checkbox" id="s1-6"><label for="s1-6">Build a prompt template that inserts retrieved chunks as context, with instructions to only answer from context</label></li>
+        <li><input type="checkbox" id="s1-7"><label for="s1-7">Call your local model through Ollama's Python client</label></li>
+        <li><input type="checkbox" id="s1-8"><label for="s1-8">Test with 5–10 questions you know the answer to; check for hallucination vs grounded answers</label></li>
+      </ul>
+      <pre class="code mono"><span class="c1"># retrieval + generation</span>
+import ollama
+
+def ask(question, k=4):
+    q_emb = embedder.encode(question).tolist()
+    results = collection.query(query_embeddings=[q_emb], n_results=k)
+    context = "\n\n".join(results["documents"][0])
+
+    prompt = f"""Answer using ONLY the context below. If the answer isn't there, say so.
+
+Context:
+{context}
+
+Question: {question}"""
+
+    response = ollama.chat(model="qwen2.5:3b", messages=[{"role": "user", "content": prompt}])
+    return response["message"]["content"]</pre>
+      <div class="callout warn">
+        <b>Common trap:</b> without "answer only from context" instructions, small models will confidently make things up. Test this explicitly with a question your documents don't cover.
+      </div>
+    </div>
+
+    <div class="day-block">
+      <div class="day-head">
+        <div class="day-title"><span class="prompt mono">$</span>Days 5–7 — Give it a face</div>
+        <span class="day-tag">polish</span>
+      </div>
+      <ul class="steps">
+        <li><input type="checkbox" id="s1-9"><label for="s1-9">Build a Streamlit (or Gradio) chat interface calling your <code class="inline">ask()</code> function</label></li>
+        <li><input type="checkbox" id="s1-10"><label for="s1-10">Show which source chunks were used for each answer (builds trust, easy to debug)</label></li>
+        <li><input type="checkbox" id="s1-11"><label for="s1-11">Add basic chat history within the session</label></li>
+        <li><input type="checkbox" id="s1-12"><label for="s1-12">Do a full run-through as if you were a first-time user</label></li>
+      </ul>
+      <pre class="code mono"><span class="c1"># app.py — run with: streamlit run app.py</span>
+import streamlit as st
+
+st.title("My Local Assistant")
+question = st.chat_input("Ask something about your documents...")
+if question:
+    with st.spinner("Thinking..."):
+        answer = ask(question)
+    st.write(answer)</pre>
+    </div>
+  </section>
+
+  <!-- PHASE 2 -->
+  <section class="phase">
+    <div class="phase-head">
+      <span class="phase-num mono">week 2</span>
+      <h2 class="phase-title">Fine-tune and benchmark</h2>
+    </div>
+    <p class="phase-sub">Goal by end of week: a small LoRA fine-tune with a clear before/after, plus a written comparison across models or quantization levels.</p>
+
+    <div class="day-block">
+      <div class="day-head">
+        <div class="day-title"><span class="prompt mono">$</span>Days 8–9 — Prepare a fine-tune dataset</div>
+        <span class="day-tag">core</span>
+      </div>
+      <ul class="steps">
+        <li><input type="checkbox" id="s2-1"><label for="s2-1">Pick a narrow goal: a persona, a strict output format (e.g. JSON), or a consistent tone — not new facts</label></li>
+        <li><input type="checkbox" id="s2-2"><label for="s2-2">Write 150–400 instruction/response example pairs (quality over quantity)</label></li>
+        <li><input type="checkbox" id="s2-3"><label for="s2-3">Format as JSONL, one example per line</label></li>
+        <li><input type="checkbox" id="s2-4"><label for="s2-4">Hold out ~10% of examples to check the fine-tune actually worked</label></li>
+      </ul>
+      <pre class="code mono"><span class="c1">// one line of training_data.jsonl</span>
+{"instruction": "Summarize this ticket", "response": "{\"issue\": ..., \"priority\": \"high\"}"}</pre>
+      <div class="callout">
+        <b>Why style, not facts:</b> fine-tuning is a poor tool for teaching a model new information on a CPU budget — RAG already does that job. Fine-tuning a small model for a few hundred steps is well suited to changing <i>how</i> it responds, not <i>what</i> it knows.
+      </div>
+    </div>
+
+    <div class="day-block">
+      <div class="day-head">
+        <div class="day-title"><span class="prompt mono">$</span>Days 10–11 — Run the LoRA fine-tune</div>
+        <span class="day-tag">core</span>
+      </div>
+      <ul class="steps">
+        <li><input type="checkbox" id="s2-5"><label for="s2-5">Install <code class="inline">transformers</code>, <code class="inline">peft</code>, <code class="inline">datasets</code>, <code class="inline">accelerate</code></label></li>
+        <li><input type="checkbox" id="s2-6"><label for="s2-6">Load a small base model (1–3B) in fp32/bf16 on CPU</label></li>
+        <li><input type="checkbox" id="s2-7"><label for="s2-7">Configure LoRA with a small rank (r=8 or 16) to keep training tractable</label></li>
+        <li><input type="checkbox" id="s2-8"><label for="s2-8">Train for a few epochs, expect this to take hours — start it and let it run overnight</label></li>
+        <li><input type="checkbox" id="s2-9"><label for="s2-9">Compare held-out examples before vs after fine-tuning</label></li>
+      </ul>
+      <pre class="code mono"><span class="c1"># minimal LoRA setup sketch</span>
+from peft import LoraConfig, get_peft_model
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-1.5B-Instruct")
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-1.5B-Instruct")
+
+lora_config = LoraConfig(
+    r=8, lora_alpha=16, target_modules=["q_proj", "v_proj"],
+    lora_dropout=0.05, task_type="CAUSAL_LM"
+)
+model = get_peft_model(model, lora_config)
+<span class="c1"># then hand model + tokenized dataset to a Trainer</span></pre>
+      <div class="callout warn">
+        <b>Set expectations:</b> CPU fine-tuning is real but slow. Keep the dataset small, the rank low, and plan for a long-running background job rather than an interactive loop.
+      </div>
+    </div>
+
+    <div class="day-block">
+      <div class="day-head">
+        <div class="day-title"><span class="prompt mono">$</span>Days 12–13 — Benchmark</div>
+        <span class="day-tag">core</span>
+      </div>
+      <ul class="steps">
+        <li><input type="checkbox" id="s2-10"><label for="s2-10">Pick 3–5 candidates to compare: e.g. base vs fine-tuned, or Q4 vs Q8 vs fp16 quantization, or 2–3 different small models</label></li>
+        <li><input type="checkbox" id="s2-11"><label for="s2-11">Run the same 10–15 test questions against each candidate</label></li>
+        <li><input type="checkbox" id="s2-12"><label for="s2-12">Record latency, memory use, and a subjective quality score (1–5) per answer</label></li>
+        <li><input type="checkbox" id="s2-13"><label for="s2-13">Put results into a small table — this becomes the centerpiece of your write-up</label></li>
+      </ul>
+      <pre class="code mono"><span class="c1"># crude timing harness</span>
+import time
+for name, model_id in candidates.items():
+    start = time.time()
+    output = run_model(model_id, test_prompt)
+    elapsed = time.time() - start
+    print(f"{name}: {elapsed:.1f}s — {output[:80]}...")</pre>
+    </div>
+
+    <div class="day-block">
+      <div class="day-head">
+        <div class="day-title"><span class="prompt mono">$</span>Day 14 — Polish and write it up</div>
+        <span class="day-tag">wrap-up</span>
+      </div>
+      <ul class="steps">
+        <li><input type="checkbox" id="s2-14"><label for="s2-14">Clean up the UI: loading states, empty state, a short "about" blurb</label></li>
+        <li><input type="checkbox" id="s2-15"><label for="s2-15">Write a short README: what it does, how to run it, what you learned</label></li>
+        <li><input type="checkbox" id="s2-16"><label for="s2-16">Include the benchmark table and 2–3 before/after fine-tune examples</label></li>
+        <li><input type="checkbox" id="s2-17"><label for="s2-17">Record a 2-minute demo screen capture if you want something shareable</label></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- GOTCHAS -->
+  <section class="phase">
+    <div class="phase-head">
+      <span class="phase-num mono">ref</span>
+      <h2 class="phase-title">CPU-specific guidelines</h2>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>Model size</h3>
+        <p>Stay at 1–3B params for anything interactive. A 7B model at Q4 quantization is usable if you're patient; larger models will feel broken, not just slow.</p>
+      </div>
+      <div class="card">
+        <h3>Threads</h3>
+        <p>Ollama and llama.cpp auto-detect CPU cores, but you can cap or raise thread count via <code class="inline">OLLAMA_NUM_THREADS</code> if generation feels slower than expected.</p>
+      </div>
+      <div class="card">
+        <h3>Context length</h3>
+        <p>Longer context = slower and more memory. Keep retrieved chunks tight (3–5 short passages) rather than dumping large documents into the prompt.</p>
+      </div>
+      <div class="card">
+        <h3>Fine-tuning patience</h3>
+        <p>A few hundred examples at low LoRA rank might take 1–4 hours on CPU. Kick it off before bed or before a work block — don't sit and wait.</p>
+      </div>
+      <div class="card">
+        <h3>Embeddings are cheap</h3>
+        <p>The embedding model (~80MB) is far lighter than the generation model — don't hesitate to re-embed your whole document set if you change chunking strategy.</p>
+      </div>
+      <div class="card">
+        <h3>Quantization formats</h3>
+        <p>Q4_K_M is a solid default balance of speed and quality for CPU. Q8 is noticeably slower with modest quality gains at this model size.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESOURCES -->
+  <section class="phase">
+    <div class="phase-head">
+      <span class="phase-num mono">ref</span>
+      <h2 class="phase-title">Resources</h2>
+    </div>
+    <ul class="reslist">
+      <li><div><div class="name">Ollama</div><div class="desc">Local model runtime — install, model library, Python client</div></div><span class="pill">ollama.com</span></li>
+      <li><div><div class="name">llama.cpp</div><div class="desc">The CPU inference engine underneath Ollama, for lower-level control</div></div><span class="pill">github.com/ggml-org/llama.cpp</span></li>
+      <li><div><div class="name">Hugging Face PEFT</div><div class="desc">LoRA and other parameter-efficient fine-tuning methods</div></div><span class="pill">huggingface.co/docs/peft</span></li>
+      <li><div><div class="name">ChromaDB</div><div class="desc">Lightweight local vector store for the RAG pipeline</div></div><span class="pill">docs.trychroma.com</span></li>
+      <li><div><div class="name">Sentence Transformers</div><div class="desc">Small local embedding models like all-MiniLM-L6-v2</div></div><span class="pill">sbert.net</span></li>
+      <li><div><div class="name">Streamlit</div><div class="desc">Fastest path to a usable chat UI in pure Python</div></div><span class="pill">streamlit.io</span></li>
+    </ul>
+  </section>
+
+  <footer>Check items off as you go — progress is saved automatically in this artifact.</footer>
+</div>
+
+<script>
+(function(){
+  const bootLines = [
+    "$ initializing project workspace...",
+    "$ target: CPU-only local ML build",
+    "$ duration: 14 days",
+    "$ status: ready",
+  ];
+  const bootEl = document.getElementById("bootText");
+  let li = 0, ci = 0, out = "";
+  function typeBoot(){
+    if(li >= bootLines.length){
+      bootEl.innerHTML = out + '<span class="cursor">&nbsp;</span>';
+      return;
+    }
+    const line = bootLines[li];
+    if(ci <= line.length){
+      bootEl.innerHTML = out + line.slice(0, ci) + '<span class="cursor">&nbsp;</span>';
+      ci++;
+      setTimeout(typeBoot, 14);
+    } else {
+      out += line + "\n";
+      li++; ci = 0;
+      setTimeout(typeBoot, 120);
+    }
+  }
+  typeBoot();
+
+  const boxes = Array.from(document.querySelectorAll('ul.steps input[type=checkbox]'));
+  const fill = document.getElementById("progressFill");
+  const count = document.getElementById("progressCount");
+
+  function updateProgress(){
+    const done = boxes.filter(b => b.checked).length;
+    fill.style.width = (boxes.length ? (done/boxes.length*100) : 0) + "%";
+    count.textContent = done + "/" + boxes.length;
+  }
+
+  async function loadState(){
+    try{
+      const res = await window.storage.get("local-ml-guide-checklist");
+      if(res && res.value){
+        const saved = JSON.parse(res.value);
+        boxes.forEach(b => { if(saved[b.id]) b.checked = true; });
+      }
+    }catch(e){ /* no saved state yet */ }
+    updateProgress();
+  }
+
+  async function saveState(){
+    const state = {};
+    boxes.forEach(b => { state[b.id] = b.checked; });
+    try{ await window.storage.set("local-ml-guide-checklist", JSON.stringify(state)); }
+    catch(e){ /* ignore */ }
+  }
+
+  boxes.forEach(b => {
+    b.addEventListener("change", () => {
+      b.closest("li").classList.toggle("done", b.checked);
+      updateProgress();
+      saveState();
+    });
+  });
+
+  loadState();
+})();
+</script>
+
+</body>
+</html>

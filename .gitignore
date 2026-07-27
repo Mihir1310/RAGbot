@@ -1,0 +1,51 @@
+# Byte-compiled / optimized / cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# uv
+.uv/
+
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Vector store (regenerated from source docs)
+chroma_db/
+*.sqlite3
+
+# Local source documents (keep your data out of git)
+data/*
+!data/.gitkeep
+
+# Model / fine-tune artifacts
+models/
+outputs/
+checkpoints/
+*.gguf
+*.safetensors
+
+# Notebooks
+.ipynb_checkpoints/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
