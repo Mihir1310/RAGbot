@@ -3,7 +3,7 @@
 A local, **CPU-only** retrieval-augmented (RAG) assistant over your own documents,
 plus a Week 2 LoRA fine-tune experiment. No GPU required, models ≤ 3B params.
 
-See the full build guide in [docs/local-ml-project-guide.html](docs/local-ml-project-guide.html).
+See the full build guide in [docs/local-ml-project-guide.html](docs/local-ml-project-guide.html), and [PREREQUISITES.md](PREREQUISITES.md) for the tech stack, concepts, and installs to review beforehand.
 
 ## Stack
 
