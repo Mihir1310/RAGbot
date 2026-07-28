@@ -20,5 +20,5 @@ class Settings(BaseSettings):
     chunk_size: int = 400
     chunk_overlap: int = 50
 
-
+# Changes 2
 settings = Settings()
