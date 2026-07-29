@@ -7,7 +7,7 @@ See the full build guide in [docs/local-ml-project-guide.html](docs/local-ml-pro
 
 ## Stack
 
-- **Runtime:** [Ollama](https://ollama.com) (CPU-first local LLM)
+- **Runtime:** [Groq API](https://www.groq.ai) (hosted generation)
 - **Embeddings:** [Sentence Transformers](https://sbert.net) (`all-MiniLM-L6-v2`)
 - **Vector store:** [ChromaDB](https://docs.trychroma.com)
 - **UI:** [Streamlit](https://streamlit.io)
@@ -32,14 +32,14 @@ RAGbot/
 ## Setup
 
 ```bash
-# 1. Install Ollama and pull a small model
-ollama pull qwen2.5:3b
-
-# 2. Install dependencies
+# 1. Install dependencies
 uv sync
 
-# 3. Configure
+# 2. Configure
 cp .env.example .env
+
+# 3. Set your Groq API key in .env
+#    RAGBOT_GROQ_API_KEY=your_groq_api_key_here
 
 # 4. Add documents to ./data (.txt, .md, .pdf)
 ```

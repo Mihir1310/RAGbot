@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Local RAG Assistant + Fine-Tune — Project Guide</title>
+<title>Local RAG Assistant + Fine-Tune � Project Guide</title>
 <style>
   :root{
     --bg: #12140F;
@@ -126,7 +126,7 @@
   }
   ul.steps input[type=checkbox]:checked{ background: var(--amber); border-color:var(--amber); }
   ul.steps input[type=checkbox]:checked::after{
-    content:"✓"; position:absolute; top:-3px; left:2px; font-size:11px; color:#12140F; font-weight:700;
+    content:"?"; position:absolute; top:-3px; left:2px; font-size:11px; color:#12140F; font-weight:700;
   }
   ul.steps label{ cursor:pointer; }
   ul.steps li.done label{ color: var(--text-dim); text-decoration: line-through; text-decoration-color: var(--line); }
@@ -193,12 +193,13 @@
   <section class="hero">
     <div class="boot mono" id="bootText"></div>
     <h1 class="title">Local RAG Assistant <span class="accent">+</span> Fine-Tune</h1>
-    <p class="subtitle">A two-week, CPU-only build: stand up a retrieval-augmented assistant on your own documents, then fine-tune a small model's style with LoRA and benchmark it against alternatives.</p>
+    <p class="subtitle">A two-week build: stand up a retrieval-augmented assistant over your own documents using the Groq API for generation, then fine-tune a small local model's style with LoRA and benchmark it against Groq and alternatives.</p>
     <div class="meta-row">
-      <span class="pill on">no GPU required</span>
+      <span class="pill on">Groq API</span>
+      <span class="pill">no GPU required</span>
       <span class="pill">14 days</span>
       <span class="pill">Python</span>
-      <span class="pill">models ≤ 3B params</span>
+      <span class="pill">local fine-tune = 3B params</span>
     </div>
   </section>
 
@@ -208,28 +209,32 @@
       <span class="phase-num mono">day 0</span>
       <h2 class="phase-title">Setup</h2>
     </div>
-    <p class="phase-sub">Get the environment working before touching any project logic — this is the part most likely to eat an evening if skipped.</p>
+    <p class="phase-sub">Get the environment working before touching any project logic � this is the part most likely to eat an evening if skipped.</p>
 
     <div class="day-block">
       <div class="day-head">
-        <div class="day-title"><span class="prompt mono">$</span>Install the runtime and a small model</div>
-        <span class="day-tag">~45 min</span>
+        <div class="day-title"><span class="prompt mono">$</span>Get a Groq API key and set up the environment</div>
+        <span class="day-tag">~30 min</span>
       </div>
       <ul class="steps">
-        <li><input type="checkbox" id="s0-1"><label for="s0-1">Install <a href="https://ollama.com" style="color:var(--teal)">Ollama</a> (CPU-first local runtime, wraps llama.cpp)</label></li>
-        <li><input type="checkbox" id="s0-2"><label for="s0-2">Pull a small quantized model and confirm it responds</label></li>
-        <li><input type="checkbox" id="s0-3"><label for="s0-3">Create a Python 3.10+ virtual environment for the project</label></li>
-        <li><input type="checkbox" id="s0-4"><label for="s0-4">Install core libraries: embeddings, vector store, UI</label></li>
+        <li><input type="checkbox" id="s0-1"><label for="s0-1">Create a free API key at <a href="https://www.groq.ai" style="color:var(--teal)">Groq</a></label></li>
+        <li><input type="checkbox" id="s0-2"><label for="s0-2">Store it in <code class="inline">.env</code> as <code class="inline">RAGBOT_GROQ_API_KEY</code> (never commit this file)</label></li>
+        <li><input type="checkbox" id="s0-3"><label for="s0-3">Create a Python 3.12+ virtual environment for the project (via <code class="inline">uv</code>)</label></li>
+        <li><input type="checkbox" id="s0-4"><label for="s0-4">Install core libraries: Groq SDK, embeddings, vector store, UI</label></li>
       </ul>
-      <pre class="code mono"><span class="c1"># pull + sanity check a small model</span>
-ollama pull qwen2.5:3b
-ollama run qwen2.5:3b "Say hello in one sentence."
+      <pre class="code mono"><span class="c1"># sanity-check the API key</span>
+python -c "
+import groq
+client = groq.Client(api_key='YOUR_KEY')
+r = client.chat.completions.create(model='openai/gpt-oss-20b', messages=[{'role':'user','content':'Say hello in one sentence.'}])
+print(r.choices[0].message.content)
+"
 
 <span class="c1"># project environment</span>
-python -m venv .venv && source .venv/bin/activate
-pip install chromadb sentence-transformers streamlit ollama pypdf</pre>
+uv venv && source .venv/bin/activate
+uv add chromadb sentence-transformers streamlit groq pypdf pydantic-settings</pre>
       <div class="callout">
-        <b>Why Qwen2.5:3b or Llama3.2:3b:</b> both run at usable speed on a CPU with no dedicated GPU. Anything above ~7B params will feel painfully slow without quantization tricks — stay small for now, you can always size up later.
+        <b>Why Groq for generation:</b> offloading generation to the API means no local model to download or run � your laptop only has to handle embeddings (tiny) and the UI. The tradeoff is an internet connection and API usage limits, so keep an eye on your Groq plan limits.
       </div>
     </div>
   </section>
@@ -244,12 +249,12 @@ pip install chromadb sentence-transformers streamlit ollama pypdf</pre>
 
     <div class="day-block">
       <div class="day-head">
-        <div class="day-title"><span class="prompt mono">$</span>Days 1–2 — Ingest your documents</div>
+        <div class="day-title"><span class="prompt mono">$</span>Days 1�2 � Ingest your documents</div>
         <span class="day-tag">core</span>
       </div>
       <ul class="steps">
-        <li><input type="checkbox" id="s1-1"><label for="s1-1">Pick a document set: notes, PDFs, a niche wiki export, saved articles — something you actually want to query</label></li>
-        <li><input type="checkbox" id="s1-2"><label for="s1-2">Write a loader that chunks text into ~300–500 token pieces with slight overlap</label></li>
+        <li><input type="checkbox" id="s1-1"><label for="s1-1">Pick a document set: notes, PDFs, a niche wiki export, saved articles � something you actually want to query</label></li>
+        <li><input type="checkbox" id="s1-2"><label for="s1-2">Write a loader that chunks text into ~300�500 token pieces with slight overlap</label></li>
         <li><input type="checkbox" id="s1-3"><label for="s1-3">Embed each chunk with a small local embedding model and store in Chroma</label></li>
         <li><input type="checkbox" id="s1-4"><label for="s1-4">Sanity-check retrieval: query the store directly, confirm relevant chunks come back</label></li>
       </ul>
@@ -271,17 +276,19 @@ for i, chunk in enumerate(chunks):
 
     <div class="day-block">
       <div class="day-head">
-        <div class="day-title"><span class="prompt mono">$</span>Days 3–4 — Wire retrieval into the model</div>
+        <div class="day-title"><span class="prompt mono">$</span>Days 3�4 � Wire retrieval into the model</div>
         <span class="day-tag">core</span>
       </div>
       <ul class="steps">
-        <li><input type="checkbox" id="s1-5"><label for="s1-5">On each user question, embed it and retrieve the top 3–5 chunks</label></li>
+        <li><input type="checkbox" id="s1-5"><label for="s1-5">On each user question, embed it and retrieve the top 3�5 chunks</label></li>
         <li><input type="checkbox" id="s1-6"><label for="s1-6">Build a prompt template that inserts retrieved chunks as context, with instructions to only answer from context</label></li>
-        <li><input type="checkbox" id="s1-7"><label for="s1-7">Call your local model through Ollama's Python client</label></li>
-        <li><input type="checkbox" id="s1-8"><label for="s1-8">Test with 5–10 questions you know the answer to; check for hallucination vs grounded answers</label></li>
+        <li><input type="checkbox" id="s1-7"><label for="s1-7">Call the Groq API with the Groq Python client</label></li>
+        <li><input type="checkbox" id="s1-8"><label for="s1-8">Test with 5�10 questions you know the answer to; check for hallucination vs grounded answers</label></li>
       </ul>
       <pre class="code mono"><span class="c1"># retrieval + generation</span>
-import ollama
+import groq
+
+client = groq.Client(api_key='YOUR_KEY')  <span class="c1"># reads RAGBOT_GROQ_API_KEY from env in your app</span>
 
 def ask(question, k=4):
     q_emb = embedder.encode(question).tolist()
@@ -295,16 +302,22 @@ Context:
 
 Question: {question}"""
 
-    response = ollama.chat(model="qwen2.5:3b", messages=[{"role": "user", "content": prompt}])
-    return response["message"]["content"]</pre>
+    response = client.chat.completions.create(
+        model="openai/gpt-oss-20b",
+        messages=[
+            {"role": "system", "content": "Answer using ONLY the context below. If the answer isn't there, say so."},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    return response.choices[0].message.content</pre>
       <div class="callout warn">
-        <b>Common trap:</b> without "answer only from context" instructions, small models will confidently make things up. Test this explicitly with a question your documents don't cover.
+        <b>Common trap:</b> without "answer only from context" instructions, even Groq will lean on its own trained knowledge instead of your documents. Test this explicitly with a question your documents don't cover.
       </div>
     </div>
 
     <div class="day-block">
       <div class="day-head">
-        <div class="day-title"><span class="prompt mono">$</span>Days 5–7 — Give it a face</div>
+        <div class="day-title"><span class="prompt mono">$</span>Days 5�7 � Give it a face</div>
         <span class="day-tag">polish</span>
       </div>
       <ul class="steps">
@@ -313,7 +326,7 @@ Question: {question}"""
         <li><input type="checkbox" id="s1-11"><label for="s1-11">Add basic chat history within the session</label></li>
         <li><input type="checkbox" id="s1-12"><label for="s1-12">Do a full run-through as if you were a first-time user</label></li>
       </ul>
-      <pre class="code mono"><span class="c1"># app.py — run with: streamlit run app.py</span>
+      <pre class="code mono"><span class="c1"># app.py � run with: streamlit run app.py</span>
 import streamlit as st
 
 st.title("My Local Assistant")
@@ -335,32 +348,35 @@ if question:
 
     <div class="day-block">
       <div class="day-head">
-        <div class="day-title"><span class="prompt mono">$</span>Days 8–9 — Prepare a fine-tune dataset</div>
+        <div class="day-title"><span class="prompt mono">$</span>Days 8�9 � Prepare a fine-tune dataset</div>
         <span class="day-tag">core</span>
       </div>
       <ul class="steps">
-        <li><input type="checkbox" id="s2-1"><label for="s2-1">Pick a narrow goal: a persona, a strict output format (e.g. JSON), or a consistent tone — not new facts</label></li>
-        <li><input type="checkbox" id="s2-2"><label for="s2-2">Write 150–400 instruction/response example pairs (quality over quantity)</label></li>
+        <li><input type="checkbox" id="s2-1"><label for="s2-1">Pick a narrow goal: a persona, a strict output format (e.g. JSON), or a consistent tone � not new facts</label></li>
+        <li><input type="checkbox" id="s2-2"><label for="s2-2">Write 150�400 instruction/response example pairs (quality over quantity)</label></li>
         <li><input type="checkbox" id="s2-3"><label for="s2-3">Format as JSONL, one example per line</label></li>
         <li><input type="checkbox" id="s2-4"><label for="s2-4">Hold out ~10% of examples to check the fine-tune actually worked</label></li>
       </ul>
       <pre class="code mono"><span class="c1">// one line of training_data.jsonl</span>
 {"instruction": "Summarize this ticket", "response": "{\"issue\": ..., \"priority\": \"high\"}"}</pre>
       <div class="callout">
-        <b>Why style, not facts:</b> fine-tuning is a poor tool for teaching a model new information on a CPU budget — RAG already does that job. Fine-tuning a small model for a few hundred steps is well suited to changing <i>how</i> it responds, not <i>what</i> it knows.
+        <b>Why style, not facts:</b> fine-tuning is a poor tool for teaching a model new information on a CPU budget � RAG already does that job. Fine-tuning a small model for a few hundred steps is well suited to changing <i>how</i> it responds, not <i>what</i> it knows.
+      </div>
+      <div class="callout">
+        <b>Note on Groq vs. this step:</b> Groq is a hosted API, so you can't LoRA fine-tune it locally � Week 2's fine-tune targets a small open-weight model (e.g. Qwen2.5-1.5B) you download and train yourself. Groq stays the Week 1 generation engine; this is a separate side-by-side experiment.
       </div>
     </div>
 
     <div class="day-block">
       <div class="day-head">
-        <div class="day-title"><span class="prompt mono">$</span>Days 10–11 — Run the LoRA fine-tune</div>
+        <div class="day-title"><span class="prompt mono">$</span>Days 10�11 � Run the LoRA fine-tune</div>
         <span class="day-tag">core</span>
       </div>
       <ul class="steps">
         <li><input type="checkbox" id="s2-5"><label for="s2-5">Install <code class="inline">transformers</code>, <code class="inline">peft</code>, <code class="inline">datasets</code>, <code class="inline">accelerate</code></label></li>
-        <li><input type="checkbox" id="s2-6"><label for="s2-6">Load a small base model (1–3B) in fp32/bf16 on CPU</label></li>
+        <li><input type="checkbox" id="s2-6"><label for="s2-6">Load a small base model (1�3B) in fp32/bf16 on CPU</label></li>
         <li><input type="checkbox" id="s2-7"><label for="s2-7">Configure LoRA with a small rank (r=8 or 16) to keep training tractable</label></li>
-        <li><input type="checkbox" id="s2-8"><label for="s2-8">Train for a few epochs, expect this to take hours — start it and let it run overnight</label></li>
+        <li><input type="checkbox" id="s2-8"><label for="s2-8">Train for a few epochs, expect this to take hours � start it and let it run overnight</label></li>
         <li><input type="checkbox" id="s2-9"><label for="s2-9">Compare held-out examples before vs after fine-tuning</label></li>
       </ul>
       <pre class="code mono"><span class="c1"># minimal LoRA setup sketch</span>
@@ -383,33 +399,36 @@ model = get_peft_model(model, lora_config)
 
     <div class="day-block">
       <div class="day-head">
-        <div class="day-title"><span class="prompt mono">$</span>Days 12–13 — Benchmark</div>
+        <div class="day-title"><span class="prompt mono">$</span>Days 12�13 � Benchmark</div>
         <span class="day-tag">core</span>
       </div>
       <ul class="steps">
-        <li><input type="checkbox" id="s2-10"><label for="s2-10">Pick 3–5 candidates to compare: e.g. base vs fine-tuned, or Q4 vs Q8 vs fp16 quantization, or 2–3 different small models</label></li>
-        <li><input type="checkbox" id="s2-11"><label for="s2-11">Run the same 10–15 test questions against each candidate</label></li>
-        <li><input type="checkbox" id="s2-12"><label for="s2-12">Record latency, memory use, and a subjective quality score (1–5) per answer</label></li>
-        <li><input type="checkbox" id="s2-13"><label for="s2-13">Put results into a small table — this becomes the centerpiece of your write-up</label></li>
+        <li><input type="checkbox" id="s2-10"><label for="s2-10">Pick 3�5 candidates to compare: e.g. base vs fine-tuned local model, Q4 vs Q8 vs fp16 quantization, or Groq vs your local model</label></li>
+        <li><input type="checkbox" id="s2-11"><label for="s2-11">Run the same 10�15 test questions against each candidate</label></li>
+        <li><input type="checkbox" id="s2-12"><label for="s2-12">Record latency, memory/API cost, and a subjective quality score (1�5) per answer</label></li>
+        <li><input type="checkbox" id="s2-13"><label for="s2-13">Put results into a small table � this becomes the centerpiece of your write-up</label></li>
       </ul>
-      <pre class="code mono"><span class="c1"># crude timing harness</span>
+      <pre class="code mono"><span class="c1"># crude timing harness � works for local or API candidates</span>
 import time
-for name, model_id in candidates.items():
+for name, run_fn in candidates.items():
     start = time.time()
-    output = run_model(model_id, test_prompt)
+    output = run_fn(test_prompt)  <span class="c1"># local model call or client.models.generate_content(...)</span>
     elapsed = time.time() - start
-    print(f"{name}: {elapsed:.1f}s — {output[:80]}...")</pre>
+    print(f"{name}: {elapsed:.1f}s � {output[:80]}...")</pre>
+      <div class="callout">
+        <b>Worthwhile comparison:</b> Groq API vs. your local fine-tuned model makes a strong benchmark row � it highlights the real tradeoff between hosted-API quality/speed and local-model privacy/cost.
+      </div>
     </div>
 
     <div class="day-block">
       <div class="day-head">
-        <div class="day-title"><span class="prompt mono">$</span>Day 14 — Polish and write it up</div>
+        <div class="day-title"><span class="prompt mono">$</span>Day 14 � Polish and write it up</div>
         <span class="day-tag">wrap-up</span>
       </div>
       <ul class="steps">
         <li><input type="checkbox" id="s2-14"><label for="s2-14">Clean up the UI: loading states, empty state, a short "about" blurb</label></li>
         <li><input type="checkbox" id="s2-15"><label for="s2-15">Write a short README: what it does, how to run it, what you learned</label></li>
-        <li><input type="checkbox" id="s2-16"><label for="s2-16">Include the benchmark table and 2–3 before/after fine-tune examples</label></li>
+        <li><input type="checkbox" id="s2-16"><label for="s2-16">Include the benchmark table and 2�3 before/after fine-tune examples</label></li>
         <li><input type="checkbox" id="s2-17"><label for="s2-17">Record a 2-minute demo screen capture if you want something shareable</label></li>
       </ul>
     </div>
@@ -419,31 +438,31 @@ for name, model_id in candidates.items():
   <section class="phase">
     <div class="phase-head">
       <span class="phase-num mono">ref</span>
-      <h2 class="phase-title">CPU-specific guidelines</h2>
+      <h2 class="phase-title">Guidelines: Groq API + local CPU work</h2>
     </div>
     <div class="grid2">
       <div class="card">
-        <h3>Model size</h3>
-        <p>Stay at 1–3B params for anything interactive. A 7B model at Q4 quantization is usable if you're patient; larger models will feel broken, not just slow.</p>
-      </div>
-      <div class="card">
-        <h3>Threads</h3>
-        <p>Ollama and llama.cpp auto-detect CPU cores, but you can cap or raise thread count via <code class="inline">OLLAMA_NUM_THREADS</code> if generation feels slower than expected.</p>
+        <h3>API rate limits</h3>
+        <p>Free-tier Groq keys cap requests per minute/day. Add basic retry/backoff around <code class="inline">chat.completions.create</code> calls, and batch your test-question runs so you don't hit limits mid-demo.</p>
       </div>
       <div class="card">
         <h3>Context length</h3>
-        <p>Longer context = slower and more memory. Keep retrieved chunks tight (3–5 short passages) rather than dumping large documents into the prompt.</p>
+        <p>Groq handles long context well, but keep retrieved chunks tight (3�5 short passages) anyway � it's faster, cheaper, and keeps the model focused on your documents instead of padding.</p>
       </div>
       <div class="card">
-        <h3>Fine-tuning patience</h3>
-        <p>A few hundred examples at low LoRA rank might take 1–4 hours on CPU. Kick it off before bed or before a work block — don't sit and wait.</p>
+        <h3>Fine-tuning patience (local only)</h3>
+        <p>A few hundred examples at low LoRA rank might take 1�4 hours on CPU for the Week 2 local model. Kick it off before bed or before a work block � don't sit and wait.</p>
       </div>
       <div class="card">
         <h3>Embeddings are cheap</h3>
-        <p>The embedding model (~80MB) is far lighter than the generation model — don't hesitate to re-embed your whole document set if you change chunking strategy.</p>
+        <p>The embedding model (~80MB) runs entirely locally and is far lighter than any generation model � don't hesitate to re-embed your whole document set if you change chunking strategy.</p>
       </div>
       <div class="card">
-        <h3>Quantization formats</h3>
+        <h3>Model size (Week 2 fine-tune)</h3>
+        <p>Stay at 1�3B params for the local fine-tune target. A 7B model at Q4 quantization is usable if you're patient; larger models will feel broken, not just slow.</p>
+      </div>
+      <div class="card">
+        <h3>Quantization formats (Week 2 fine-tune)</h3>
         <p>Q4_K_M is a solid default balance of speed and quality for CPU. Q8 is noticeably slower with modest quality gains at this model size.</p>
       </div>
     </div>
@@ -456,7 +475,8 @@ for name, model_id in candidates.items():
       <h2 class="phase-title">Resources</h2>
     </div>
     <ul class="reslist">
-      <li><div><div class="name">Ollama</div><div class="desc">Local model runtime — install, model library, Python client</div></div><span class="pill">ollama.com</span></li>
+      <li><div><div class="name">Groq API</div><div class="desc">Hosted generation model � API keys, docs, Python client (<code class="inline">groq</code>)</div></div><span class="pill">groq.ai</span></li>
+      <li><div><div class="name">Ollama (optional)</div><div class="desc">Local model runtime � useful for the Week 2 local-vs-Groq benchmark</div></div><span class="pill">ollama.com</span></li>
       <li><div><div class="name">llama.cpp</div><div class="desc">The CPU inference engine underneath Ollama, for lower-level control</div></div><span class="pill">github.com/ggml-org/llama.cpp</span></li>
       <li><div><div class="name">Hugging Face PEFT</div><div class="desc">LoRA and other parameter-efficient fine-tuning methods</div></div><span class="pill">huggingface.co/docs/peft</span></li>
       <li><div><div class="name">ChromaDB</div><div class="desc">Lightweight local vector store for the RAG pipeline</div></div><span class="pill">docs.trychroma.com</span></li>
@@ -465,7 +485,7 @@ for name, model_id in candidates.items():
     </ul>
   </section>
 
-  <footer>Check items off as you go — progress is saved automatically in this artifact.</footer>
+  <footer>Check items off as you go � progress is saved automatically in this artifact.</footer>
 </div>
 
 <script>
