@@ -15,6 +15,11 @@ Context:
 
 Question: {question}"""
 
+NO_CONTEXT_PROMPT_TEMPLATE = """You are a helpful assistant. Answer the question directly. \
+If you are not sure, say you don't know.
+
+Question: {question}"""
+
 
 @lru_cache(maxsize=1)
 def _get_embedder():
@@ -31,6 +36,18 @@ def _get_collection():
     return client.get_or_create_collection(settings.collection)
 
 
+@lru_cache(maxsize=1)
+def _get_groq_client():
+    from groq import Client
+
+    client_args = {}
+    if settings.groq_api_key:
+        client_args["api_key"] = settings.groq_api_key
+    if settings.groq_base_url:
+        client_args["base_url"] = settings.groq_base_url
+    return Client(**client_args)
+
+
 def retrieve(question: str, k: int | None = None) -> list[str]:
     """Return the top-k most relevant chunks for a question."""
     k = k or settings.top_k
@@ -44,14 +61,36 @@ def ask(question: str, k: int | None = None) -> tuple[str, list[str]]:
 
     Returns the answer and the source chunks used.
     """
-    import ollama
-
     chunks = retrieve(question, k)
-    context = "\n\n".join(chunks)
-    prompt = PROMPT_TEMPLATE.format(context=context, question=question)
 
-    response = ollama.chat(
-        model=settings.llm_model,
-        messages=[{"role": "user", "content": prompt}],
+    if chunks:
+        context = "\n\n".join(chunks)
+        messages = [
+            {"role": "system", "content": "Answer using ONLY the context below. If the answer isn't there, say you don't know."},
+            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
+        ]
+    else:
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant. Answer the question directly. If you are not sure, say you don't know."},
+            {"role": "user", "content": question},
+        ]
+
+    response = _get_groq_client().chat.completions.create(
+        model=settings.groq_model,
+        messages=messages,
     )
-    return response["message"]["content"], chunks
+
+    first_choice = response.choices[0]
+    message = first_choice.message
+    content = message.content
+    if isinstance(content, str):
+        answer = content
+    elif hasattr(content, "__iter__"):
+        answer = "".join(
+            part.text if hasattr(part, "text") else str(part)
+            for part in content
+        )
+    else:
+        answer = str(content)
+
+    return answer, chunks

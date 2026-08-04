@@ -11,7 +11,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    llm_model: str = "qwen2.5:3b"
+    groq_model: str = "openai/gpt-oss-20b"
+    groq_api_key: str | None = None
+    groq_base_url: str | None = None
     embed_model: str = "all-MiniLM-L6-v2"
     chroma_path: str = "./chroma_db"
     collection: str = "my_docs"
