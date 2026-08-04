@@ -52,6 +52,9 @@ uv run ragbot-ingest
 
 # Launch the chat UI
 uv run streamlit run src/ragbot/app.py
+
+# Run the command-line example
+uv run python examples/run_rag_example.py
 ```
 
 ## Roadmap
