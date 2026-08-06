@@ -37,15 +37,31 @@ def _get_collection():
 
 
 @lru_cache(maxsize=1)
-def _get_groq_client():
-    from groq import Client
+def _get_llm_client():
+    """Return an LLM client based on configured provider (ollama or groq)."""
+    if settings.llm_provider.lower() == "ollama":
+        from openai import OpenAI
 
-    client_args = {}
-    if settings.groq_api_key:
-        client_args["api_key"] = settings.groq_api_key
-    if settings.groq_base_url:
-        client_args["base_url"] = settings.groq_base_url
-    return Client(**client_args)
+        return OpenAI(
+            base_url=settings.ollama_base_url,
+            api_key="ollama",  # Ollama local server does not require an API key
+            timeout=300.0,  # 5 minutes timeout for local inference
+        )
+    else:
+        from groq import Client
+
+        client_args = {}
+        if settings.groq_api_key:
+            client_args["api_key"] = settings.groq_api_key
+        if settings.groq_base_url:
+            client_args["base_url"] = settings.groq_base_url
+        return Client(**client_args)
+
+
+def _get_model_name() -> str:
+    if settings.llm_provider.lower() == "ollama":
+        return settings.ollama_model
+    return settings.groq_model
 
 
 def retrieve(question: str, k: int | None = None) -> list[str]:
@@ -66,17 +82,26 @@ def ask(question: str, k: int | None = None) -> tuple[str, list[str]]:
     if chunks:
         context = "\n\n".join(chunks)
         messages = [
-            {"role": "system", "content": "Answer using ONLY the context below. If the answer isn't there, say you don't know."},
+            {
+                "role": "system",
+                "content": "Answer using ONLY the context below. If the answer isn't there, say you don't know.",
+            },
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
         ]
     else:
         messages = [
-            {"role": "system", "content": "You are a helpful assistant. Answer the question directly. If you are not sure, say you don't know."},
+            {
+                "role": "system",
+                "content": "You are a financial analyst assistant. Answer the question clearly. If you are not sure, say you don't know.",
+            },
             {"role": "user", "content": question},
         ]
 
-    response = _get_groq_client().chat.completions.create(
-        model=settings.groq_model,
+    client = _get_llm_client()
+    model_name = _get_model_name()
+
+    response = client.chat.completions.create(
+        model=model_name,
         messages=messages,
     )
 
@@ -94,3 +119,39 @@ def ask(question: str, k: int | None = None) -> tuple[str, list[str]]:
         answer = str(content)
 
     return answer, chunks
+
+
+def ask_stream(question: str, k: int | None = None):
+    """Stream answer tokens in real-time. Yields (token_chunk, chunks)."""
+    chunks = retrieve(question, k)
+
+    if chunks:
+        context = "\n\n".join(chunks)
+        messages = [
+            {
+                "role": "system",
+                "content": "Answer concisely using ONLY the context below. Keep response short and direct.",
+            },
+            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"},
+        ]
+    else:
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a helpful assistant. Answer concisely. If not sure, say you don't know.",
+            },
+            {"role": "user", "content": question},
+        ]
+
+    client = _get_llm_client()
+    model_name = _get_model_name()
+
+    stream = client.chat.completions.create(
+        model=model_name,
+        messages=messages,
+        stream=True,
+    )
+
+    for chunk in stream:
+        if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content, chunks

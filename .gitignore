@@ -27,6 +27,7 @@ chroma_db/
 # Local source documents (keep your data out of git)
 data/*
 !data/.gitkeep
+!data/animals
 
 # Model / fine-tune artifacts
 models/

@@ -11,9 +11,14 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    llm_provider: str = "ollama"  # "ollama" or "groq"
+    ollama_model: str = "qwen3:4b"
+    ollama_base_url: str = "http://localhost:11434/v1"
     groq_model: str = "openai/gpt-oss-20b"
     groq_api_key: str | None = None
     groq_base_url: str | None = None
+    sec_user_agent: str = "FinancialAnalystBot research@example.com"
+    edgar_data_dir: str = "./data/edgar"
     embed_model: str = "all-MiniLM-L6-v2"
     chroma_path: str = "./chroma_db"
     collection: str = "my_docs"
