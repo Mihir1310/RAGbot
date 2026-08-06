@@ -3,6 +3,7 @@
 Week 1, Days 5-7. Run with: `uv run streamlit run src/ragbot/app.py`
 """
 
+from ragbot.app import sources_list
 import streamlit as st
 
 from ragbot.rag import ask_stream
@@ -24,19 +25,20 @@ if question:
         st.write(question)
 
     with st.chat_message("assistant"):
-        sources_holder = []
+        sources_list = []
 
         def token_generator():
+            nonlocal sources_list
             for token, chunks in ask_stream(question):
-                if not sources_holder:
-                    sources_holder.extend(chunks)
+                if not sources_list:
+                    sources_list = chunks
                 yield token
 
         full_answer = st.write_stream(token_generator())
 
-        if sources_holder:
+        if sources_list:
             with st.expander("Sources used"):
-                for i, chunk in enumerate(sources_holder, 1):
+                for i, chunk in enumerate(sources_list, 1):
                     st.markdown(f"**Chunk {i}**")
                     st.caption(chunk)
 
