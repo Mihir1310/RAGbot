@@ -23,48 +23,93 @@ def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
     return chunks
 
 
-def load_documents(data_dir: str) -> list[str]:
-    """Load raw text from supported files in the data directory.
+def load_documents(data_dir: str) -> list[tuple[str, dict]]:
+    """Load raw text and metadata from supported files in the data directory.
 
     Supports .txt and .md out of the box; .pdf via pypdf.
+    Attaches sidecar JSON metadata if present.
     """
+    import json
     from pypdf import PdfReader
 
-    texts: list[str] = []
+    results: list[tuple[str, dict]] = []
     root = Path(data_dir)
     for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+
+        meta: dict = {"source": str(path.relative_to(root))}
+        sidecar_json = path.with_suffix(".json")
+        if sidecar_json.exists():
+            try:
+                sidecar_data = json.loads(sidecar_json.read_text(encoding="utf-8"))
+                meta.update(sidecar_data)
+            except Exception:
+                pass
+
         if path.suffix.lower() in {".txt", ".md"}:
-            texts.append(path.read_text(encoding="utf-8", errors="ignore"))
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            if text.strip():
+                results.append((text, meta))
         elif path.suffix.lower() == ".pdf":
             reader = PdfReader(str(path))
-            texts.append("\n".join(page.extract_text() or "" for page in reader.pages))
-    return texts
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+            if text.strip():
+                results.append((text, meta))
+
+    return results
 
 
 def main() -> None:
+    import argparse
     import chromadb
     from sentence_transformers import SentenceTransformer
 
+    parser = argparse.ArgumentParser(description="Ingest documents into ChromaDB.")
+    parser.add_argument("--reset", action="store_true", help="Reset/clear the Chroma collection before ingesting")
+    args = parser.parse_args()
+
     embedder = SentenceTransformer(settings.embed_model)
     client = chromadb.PersistentClient(path=settings.chroma_path)
+
+    if args.reset:
+        try:
+            client.delete_collection(settings.collection)
+            print(f"Cleared existing collection {settings.collection!r}.")
+        except Exception:
+            pass
+
     collection = client.get_or_create_collection(settings.collection)
 
-    documents = load_documents(settings.data_dir)
-    if not documents:
+    doc_entries = load_documents(settings.data_dir)
+    if not doc_entries:
         print(f"No documents found in {settings.data_dir!r}. Add some files and re-run.")
         return
 
-    idx = 0
-    for doc in documents:
-        for chunk in chunk_text(doc, settings.chunk_size, settings.chunk_overlap):
-            collection.add(
-                documents=[chunk],
-                embeddings=[embedder.encode(chunk).tolist()],
-                ids=[f"chunk-{idx}"],
-            )
-            idx += 1
+    total_chunks = 0
+    for doc_text, meta in doc_entries:
+        source_tag = meta.get("source", "file")
+        ticker = meta.get("ticker", "")
+        form = meta.get("form_type", "")
+        
+        if ticker or form:
+            prefix = f"[{ticker} {form} {source_tag}] "
+        else:
+            prefix = f"[Document: {source_tag}] "
 
-    print(f"Ingested {idx} chunks into collection {settings.collection!r}.")
+        chunks = chunk_text(doc_text, settings.chunk_size, settings.chunk_overlap)
+        for c_idx, chunk in enumerate(chunks):
+            full_chunk = prefix + chunk
+            chunk_id = f"{source_tag}:{c_idx}"
+            collection.upsert(
+                documents=[full_chunk],
+                embeddings=[embedder.encode(full_chunk).tolist()],
+                metadatas=[meta],
+                ids=[chunk_id],
+            )
+            total_chunks += 1
+
+    print(f"Successfully ingested {total_chunks} chunks into collection {settings.collection!r}.")
 
 
 if __name__ == "__main__":

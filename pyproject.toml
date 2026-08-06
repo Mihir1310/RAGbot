@@ -9,6 +9,9 @@ dependencies = [
     "sentence-transformers>=3.0",
     "streamlit>=1.37",
     "groq>=1.6",
+    "openai>=1.0",
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
     "pypdf>=4.3",
     "pydantic>=2.8",
     "pydantic-settings>=2.4",
@@ -30,6 +33,7 @@ dev = [
 
 [project.scripts]
 ragbot-ingest = "ragbot.ingest:main"
+ragbot-edgar = "ragbot.edgar_fetcher:main"
 
 [build-system]
 requires = ["hatchling"]
